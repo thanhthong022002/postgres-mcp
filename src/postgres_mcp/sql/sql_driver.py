@@ -84,6 +84,20 @@ class DbConnPool:
         # Close any existing pool before creating a new one
         await self.close()
 
+        import os
+        pool_kwargs = {}
+        prepare_threshold_env = os.environ.get("PREPARE_THRESHOLD")
+        if prepare_threshold_env is not None:
+            if prepare_threshold_env.lower() in ("none", "null", "false", "0"):
+                pool_kwargs["kwargs"] = {"prepare_threshold": None}
+            else:
+                try:
+                    pool_kwargs["kwargs"] = {"prepare_threshold": int(prepare_threshold_env)}
+                except ValueError:
+                    pass
+        elif os.environ.get("PGBOUNCER", "").lower() in ("true", "1") or os.environ.get("DISABLE_PREPARED_STATEMENTS", "").lower() in ("true", "1"):
+            pool_kwargs["kwargs"] = {"prepare_threshold": None}
+
         try:
             # Configure connection pool with appropriate settings
             self.pool = AsyncConnectionPool(
@@ -91,6 +105,7 @@ class DbConnPool:
                 min_size=1,
                 max_size=5,
                 open=False,  # Don't connect immediately, let's do it explicitly
+                **pool_kwargs
             )
 
             # Open the pool explicitly
